@@ -2,12 +2,10 @@ schema: spec-driven
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Подробности: openspec/project.md
+context: |
+  Проект на Rust: idle RTS (стратегия в реальном времени с idle/incremental-прогрессом).
+  Спека и изменения — OpenSpec spec-driven; команды Cursor: /opsx-propose, /opsx:apply, /opsx-archive, /opsx-explore.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
