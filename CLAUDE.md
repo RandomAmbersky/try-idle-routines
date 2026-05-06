@@ -52,12 +52,17 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+**Rust (root package)**
 
 ```bash
-# Example:
-# npm install
-# npm test
+cargo check
+cargo run
+```
+
+**Beads UI** (optional)
+
+```bash
+make bdui
 ```
 
 ## Architecture Overview
