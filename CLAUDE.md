@@ -59,6 +59,8 @@ cargo check
 cargo run
 ```
 
+Note: `cargo run` is **interactive** (full-screen TUI). Use `cargo check` as the non-interactive quality gate.
+
 **Beads UI** (optional)
 
 ```bash
