@@ -17,6 +17,8 @@ use ratatui::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // If stdout isn't a real terminal (e.g. output is piped or redirected),
+    // don't try to enter raw mode / alternate screen for the TUI.
     if !io::stdout().is_terminal() {
         println!("Hello, world!");
         return Ok(());
