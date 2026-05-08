@@ -1,9 +1,9 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::Style,
     text::Line,
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 use crate::core::Game;
@@ -42,4 +42,3 @@ pub fn render(frame: &mut Frame, game: &Game) {
     let help = Paragraph::new(Line::from("Press q to quit")).style(Style::default());
     frame.render_widget(help, footer);
 }
-

@@ -1,9 +1,8 @@
 use std::io;
 
 use crossterm::{
-    cursor,
+    ExecutableCommand, cursor,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
 };
 
 pub struct Tui {
@@ -47,4 +46,3 @@ impl Drop for Tui {
         let _ = self.restore();
     }
 }
-

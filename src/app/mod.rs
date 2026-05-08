@@ -1,6 +1,6 @@
 use std::io;
 
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::{core::Game, input::Action, tui::Tui, ui};
 
@@ -30,4 +30,3 @@ impl App {
         Ok(())
     }
 }
-

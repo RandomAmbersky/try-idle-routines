@@ -68,4 +68,3 @@ mod tests {
         assert_eq!(g.accum_ms, 500);
     }
 }
-

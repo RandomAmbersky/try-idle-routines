@@ -12,4 +12,3 @@ pub fn read_action_blocking() -> std::io::Result<Action> {
         _ => Ok(Action::None),
     }
 }
-
