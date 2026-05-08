@@ -50,9 +50,14 @@ Proposed module layout:
 
 - `src/main.rs`
   - Minimal wiring: initialize, create `App`, call `app.run()`, handle top-level error reporting.
+- `src/core/mod.rs`
+  - UI-agnostic game/domain layer (state + pure logic).
+  - Owns the “future anchors” (`world`, `base`, `units`) and any rules that evolve them.
+  - Must not depend on terminal/UI crates; designed to be reusable with other frontends later.
 - `src/app/mod.rs`
-  - `App` struct for application state (will later own map/base/units).
-  - `run()` main loop.
+  - Application shell / runtime wiring for the chosen frontend (ratatui+crossterm).
+  - Holds `core::Game` (or similar) as the source of truth.
+  - `run()` main loop (render → input → action dispatch).
 - `src/ui/mod.rs`
   - `render(frame, &App)` — pure rendering (no input reading, no timing).
   - Owns layout composition (Map/Base/Units panels) and drawing.
@@ -85,13 +90,15 @@ Input strategy (MVP-0):
 
 ### State model (stub for future)
 
-Even in MVP-0, `App` should reserve “future state anchors” as empty placeholders to keep the direction clear:
+Even in MVP-0, the domain layer in `core` should reserve “future state anchors” as empty placeholders to keep the direction clear:
 
 - `world` (future map / global state)
 - `base` (future base state)
 - `units` (future unit roster/state)
 
 They can be empty structs or `Option<()>`-like placeholders; no behavior required in MVP-0.
+
+`app` should treat `core` as the source of truth, and avoid duplicating domain state inside UI-specific types.
 
 ## Error handling & terminal safety
 
