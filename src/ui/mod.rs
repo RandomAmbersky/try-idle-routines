@@ -28,7 +28,7 @@ pub fn render(frame: &mut Frame, game: &Game) {
         ])
         .split(body);
 
-    let map = Paragraph::new("Hello world")
+    let map = Paragraph::new(format!("Hello world\n\n{:?}", game.world))
         .block(Block::default().title("Map").borders(Borders::ALL));
     let base = Paragraph::new(format!("{:?}", game.base))
         .block(Block::default().title("Base").borders(Borders::ALL));
