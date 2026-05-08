@@ -28,10 +28,10 @@ impl Game {
     }
 
     pub fn tick(&mut self, ms: u64) {
-        self.accum_ms = self.accum_ms.saturating_add(ms);
+        self.accum_ms += ms;
         while self.accum_ms >= 1000 {
             self.accum_ms -= 1000;
-            self.ticks = self.ticks.saturating_add(1);
+            self.ticks += 1;
         }
     }
 }
