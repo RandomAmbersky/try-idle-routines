@@ -1,3 +1,5 @@
+mod core;
+
 fn main() {
-    println!("Hello, world!");
+    println!("idle-tui: see TUI implementation tasks");
 }
