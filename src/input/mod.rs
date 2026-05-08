@@ -46,7 +46,10 @@ mod tests {
 
     #[test]
     fn maps_q_to_quit() {
-        assert_eq!(action_from_key(KeyEvent::from(KeyCode::Char('q'))), Action::Quit);
+        assert_eq!(
+            action_from_key(KeyEvent::from(KeyCode::Char('q'))),
+            Action::Quit
+        );
     }
 
     #[test]
@@ -59,7 +62,10 @@ mod tests {
 
     #[test]
     fn maps_n_to_step() {
-        assert_eq!(action_from_key(KeyEvent::from(KeyCode::Char('n'))), Action::Step);
+        assert_eq!(
+            action_from_key(KeyEvent::from(KeyCode::Char('n'))),
+            Action::Step
+        );
     }
 
     #[test]
