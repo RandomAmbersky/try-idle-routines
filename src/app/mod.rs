@@ -23,7 +23,7 @@ impl App {
 
             match crate::input::read_action_blocking()? {
                 Action::Quit => break,
-                Action::None => {}
+                Action::TogglePause | Action::Step | Action::Tick | Action::None => {}
             }
         }
 
