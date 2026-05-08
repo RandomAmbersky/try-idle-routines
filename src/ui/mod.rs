@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::core::Game;
 
-pub fn render(frame: &mut Frame, game: &Game) {
+pub fn render(frame: &mut Frame, game: &Game, mode: &str) {
     let area = frame.area();
 
     let chunks = Layout::default()
@@ -39,6 +39,10 @@ pub fn render(frame: &mut Frame, game: &Game) {
     frame.render_widget(base, cols[1]);
     frame.render_widget(units, cols[2]);
 
-    let help = Paragraph::new(Line::from("Press q to quit")).style(Style::default());
+    let help = Paragraph::new(Line::from(format!(
+        "mode: {} | ticks: {} | q quit | p pause | n step",
+        mode, game.ticks
+    )))
+    .style(Style::default());
     frame.render_widget(help, footer);
 }

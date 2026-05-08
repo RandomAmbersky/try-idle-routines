@@ -26,7 +26,11 @@ impl App {
         let mut mode = RunMode::Running;
 
         loop {
-            terminal.draw(|f| ui::render(f, &self.game))?;
+            let mode_label = match mode {
+                RunMode::Running => "running",
+                RunMode::Paused => "paused",
+            };
+            terminal.draw(|f| ui::render(f, &self.game, mode_label))?;
 
             let action = match mode {
                 RunMode::Running => crate::input::read_action_tick_aware(1000)?,
