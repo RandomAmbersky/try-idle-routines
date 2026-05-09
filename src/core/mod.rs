@@ -182,5 +182,34 @@ mod tests {
         assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
         assert_eq!(g.base.silver, SILVER_PER_GATHER);
         assert_eq!(g.world.available_gather_missions, 1);
+
+        // Second full gather cycle
+        g.tick(1000);
+        assert_eq!(g.world.available_gather_missions, 0);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering {
+                seconds_left: GATHER_DURATION_SECS,
+            }
+        );
+
+        g.tick(1000);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering {
+                seconds_left: GATHER_DURATION_SECS - 1,
+            }
+        );
+
+        g.tick(1000);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering { seconds_left: 1 }
+        );
+
+        g.tick(1000);
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+        assert_eq!(g.base.silver, 2 * SILVER_PER_GATHER);
+        assert_eq!(g.world.available_gather_missions, 1);
     }
 }
