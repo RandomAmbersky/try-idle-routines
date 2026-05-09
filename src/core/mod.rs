@@ -8,8 +8,31 @@ pub struct Base {
     pub silver: u64,
 }
 
-#[derive(Debug, Default)]
-pub struct Units;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SquadState {
+    IdleAtBase,
+    Gathering { seconds_left: u32 },
+}
+
+#[derive(Debug)]
+pub struct Squad {
+    pub state: SquadState,
+}
+
+#[derive(Debug)]
+pub struct Units {
+    pub squads: Vec<Squad>,
+}
+
+impl Default for Units {
+    fn default() -> Self {
+        Self {
+            squads: vec![Squad {
+                state: SquadState::IdleAtBase,
+            }],
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Game {
@@ -56,6 +79,13 @@ mod tests {
     fn new_game_has_one_gather_mission_available() {
         let g = Game::new();
         assert_eq!(g.world.available_gather_missions, 1);
+    }
+
+    #[test]
+    fn new_game_single_squad_idle_at_base() {
+        let g = Game::new();
+        assert_eq!(g.units.squads.len(), 1);
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
     }
 
     #[test]
