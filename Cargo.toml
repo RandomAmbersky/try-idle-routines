@@ -2,6 +2,7 @@
 name = "idle-tui"
 version = "0.1.0"
 edition = "2024"
+description = "Terminal UFO/XCOM-flavored idle: map missions, autonomous squads, base resources (Rust + ratatui)."
 
 [dependencies]
 ratatui = "*"
