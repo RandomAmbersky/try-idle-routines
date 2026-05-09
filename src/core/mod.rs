@@ -2,7 +2,9 @@
 pub struct World;
 
 #[derive(Debug, Default)]
-pub struct Base;
+pub struct Base {
+    pub silver: u64,
+}
 
 #[derive(Debug, Default)]
 pub struct Units;
@@ -39,6 +41,12 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_game_base_has_zero_silver() {
+        let g = Game::new();
+        assert_eq!(g.base.silver, 0);
+    }
 
     #[test]
     fn tick_1000ms_increments_once() {
