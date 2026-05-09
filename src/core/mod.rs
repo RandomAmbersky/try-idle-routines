@@ -1,3 +1,6 @@
+const GATHER_DURATION_SECS: u32 = 3;
+const SILVER_PER_GATHER: u64 = 10;
+
 #[derive(Debug, Default)]
 pub struct World {
     pub available_gather_missions: u32,
@@ -61,6 +64,36 @@ impl Game {
         while self.accum_ms >= 1000 {
             self.accum_ms -= 1000;
             self.ticks += 1;
+            self.simulate_second();
+        }
+    }
+
+    fn simulate_second(&mut self) {
+        let squad = &mut self.units.squads[0];
+        match squad.state {
+            SquadState::IdleAtBase => {
+                if self.world.available_gather_missions > 0 {
+                    self.world.available_gather_missions -= 1;
+                    squad.state = SquadState::Gathering {
+                        seconds_left: GATHER_DURATION_SECS,
+                    };
+                }
+            }
+            SquadState::Gathering { seconds_left } => match seconds_left {
+                1 => {
+                    self.base.silver = self.base.silver.saturating_add(SILVER_PER_GATHER);
+                    squad.state = SquadState::IdleAtBase;
+                    self.world.available_gather_missions = self
+                        .world
+                        .available_gather_missions
+                        .saturating_add(1);
+                }
+                n => {
+                    squad.state = SquadState::Gathering {
+                        seconds_left: n - 1,
+                    };
+                }
+            },
         }
     }
 }
@@ -114,5 +147,40 @@ mod tests {
         g.tick(2500);
         assert_eq!(g.ticks, 2);
         assert_eq!(g.accum_ms, 500);
+    }
+
+    #[test]
+    fn autonomous_gather_loop_adds_silver_every_gather_cycle() {
+        let mut g = Game::new();
+        assert_eq!(g.world.available_gather_missions, 1);
+        assert_eq!(g.base.silver, 0);
+
+        g.tick(1000); // simulated second 1: depart
+        assert_eq!(g.world.available_gather_missions, 0);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering {
+                seconds_left: GATHER_DURATION_SECS,
+            }
+        );
+
+        g.tick(1000); // 2 → 3 → 2
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering {
+                seconds_left: GATHER_DURATION_SECS - 1,
+            }
+        );
+
+        g.tick(1000); // 3 → 2 → 1
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::Gathering { seconds_left: 1 }
+        );
+
+        g.tick(1000); // 4: resolve
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+        assert_eq!(g.base.silver, SILVER_PER_GATHER);
+        assert_eq!(g.world.available_gather_missions, 1);
     }
 }
