@@ -1,5 +1,7 @@
 #[derive(Debug, Default)]
-pub struct World;
+pub struct World {
+    pub available_gather_missions: u32,
+}
 
 #[derive(Debug, Default)]
 pub struct Base {
@@ -21,7 +23,9 @@ pub struct Game {
 impl Game {
     pub fn new() -> Self {
         Self {
-            world: World::default(),
+            world: World {
+                available_gather_missions: 1,
+            },
             base: Base::default(),
             units: Units::default(),
             ticks: 0,
@@ -46,6 +50,12 @@ mod tests {
     fn new_game_base_has_zero_silver() {
         let g = Game::new();
         assert_eq!(g.base.silver, 0);
+    }
+
+    #[test]
+    fn new_game_has_one_gather_mission_available() {
+        let g = Game::new();
+        assert_eq!(g.world.available_gather_missions, 1);
     }
 
     #[test]
