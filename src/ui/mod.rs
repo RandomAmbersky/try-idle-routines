@@ -1,3 +1,6 @@
+mod selection;
+pub use selection::{Selection, SquadId};
+
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
