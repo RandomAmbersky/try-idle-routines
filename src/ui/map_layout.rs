@@ -1,8 +1,6 @@
 use ratatui::layout::Rect;
 
-/// Logical map size in cells (one terminal cell per map cell at 1:1; no scaling).
-pub const MAP_WIDTH: u16 = 100;
-pub const MAP_HEIGHT: u16 = 100;
+pub use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 
 #[inline]
 pub fn map_bounds() -> Rect {

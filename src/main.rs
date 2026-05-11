@@ -1,4 +1,5 @@
 mod app;
+mod constants;
 mod core;
 mod input;
 mod tui;
