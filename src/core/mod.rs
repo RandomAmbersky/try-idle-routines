@@ -1,6 +1,9 @@
 /// Milliseconds per one simulated second (`Game::tick` boundary and runtime poll interval).
 pub const SIMULATED_SECOND_MS: u64 = 100;
 
+mod world_gen;
+pub use world_gen::{generate_base_and_three_missions, pick_closest_mission_index};
+
 const GATHER_DURATION_SECS: u32 = 3;
 const SILVER_PER_GATHER: u64 = 10;
 

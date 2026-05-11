@@ -7,3 +7,4 @@ description = "Terminal UFO/XCOM-flavored idle: map missions, autonomous squads,
 [dependencies]
 ratatui = "*"
 crossterm = "*"
+rand = "0.8"
