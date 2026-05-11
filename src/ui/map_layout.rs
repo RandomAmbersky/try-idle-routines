@@ -2,6 +2,9 @@ use ratatui::layout::Rect;
 
 pub use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 
+#[allow(unused_imports)]
+pub use crate::map_geometry::{cell_step_toward, outbound_route_len, route_outbound_cells_from};
+
 #[inline]
 pub fn map_bounds() -> Rect {
     Rect::new(0, 0, MAP_WIDTH, MAP_HEIGHT)
@@ -145,74 +148,9 @@ pub fn map_target_at_cell(col: u16, row: u16) -> MapTarget {
     }
 }
 
-/// One grid step from `from` toward `to`, clamped inside the fixed map.
-pub fn cell_step_toward(from: (u16, u16), to: (u16, u16)) -> (u16, u16) {
-    let inner = map_bounds();
-    let max_c = inner.width.saturating_sub(1);
-    let max_r = inner.height.saturating_sub(1);
-    let (fc, fr) = (i32::from(from.0.min(max_c)), i32::from(from.1.min(max_r)));
-    let (tc, tr) = (i32::from(to.0.min(max_c)), i32::from(to.1.min(max_r)));
-    let dc = (tc - fc).signum();
-    let dr = (tr - fr).signum();
-    let mc = i32::from(max_c);
-    let mr = i32::from(max_r);
-    if dc != 0 && (dr == 0 || dc.unsigned_abs() >= dr.unsigned_abs()) {
-        let nc = (fc + dc).clamp(0, mc) as u16;
-        (nc, from.1.min(max_r))
-    } else if dr != 0 {
-        let nr = (fr + dr).clamp(0, mr) as u16;
-        (from.0.min(max_c), nr)
-    } else {
-        (from.0.min(max_c), from.1.min(max_r))
-    }
-}
-
 /// Cells from the first step off-base through the mission site (inclusive), in travel order.
 pub fn route_outbound_cells() -> Vec<(u16, u16)> {
-    let inner = map_bounds();
-    if inner.width == 0 || inner.height == 0 {
-        return Vec::new();
-    }
-    let base = cell_for_base();
-    let mission = cell_for_mission();
-    let start = cell_step_toward(base, mission);
-    bresenham_inclusive(start, mission, inner.width, inner.height)
-}
-
-fn bresenham_inclusive(
-    start: (u16, u16),
-    end: (u16, u16),
-    max_w: u16,
-    max_h: u16,
-) -> Vec<(u16, u16)> {
-    let max_x = i32::from(max_w.saturating_sub(1));
-    let max_y = i32::from(max_h.saturating_sub(1));
-    let mut x0 = i32::from(start.0).clamp(0, max_x);
-    let mut y0 = i32::from(start.1).clamp(0, max_y);
-    let x1 = i32::from(end.0).clamp(0, max_x);
-    let y1 = i32::from(end.1).clamp(0, max_y);
-    let mut out = Vec::new();
-    let dx = (x1 - x0).abs();
-    let sx = if x0 < x1 { 1 } else { -1 };
-    let dy = -(y1 - y0).abs();
-    let sy = if y0 < y1 { 1 } else { -1 };
-    let mut err = dx + dy;
-    loop {
-        out.push((x0 as u16, y0 as u16));
-        if x0 == x1 && y0 == y1 {
-            break;
-        }
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x0 += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y0 += sy;
-        }
-    }
-    out
+    route_outbound_cells_from(cell_for_base(), cell_for_mission())
 }
 
 /// Consecutive cells along `route_outbound_cells` are king-adjacent (one map cell per step).
