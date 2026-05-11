@@ -53,6 +53,8 @@ impl App {
                         self.game.tick(1000);
                     }
                 }
+                Action::ClearSelection => {}
+                Action::MousePress { .. } => {}
                 Action::None => {}
             }
         }
