@@ -1,5 +1,5 @@
 /// Milliseconds per one simulated second (`Game::tick` boundary and runtime poll interval).
-pub const SIMULATED_SECOND_MS: u64 = 1000;
+pub const SIMULATED_SECOND_MS: u64 = 100;
 
 const GATHER_DURATION_SECS: u32 = 3;
 const SILVER_PER_GATHER: u64 = 10;
@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn tick_1000ms_increments_once() {
+    fn tick_one_simulated_second_increments_once() {
         let mut g = Game::new();
         g.tick(SIMULATED_SECOND_MS);
         assert_eq!(g.ticks, 1);
@@ -201,11 +201,11 @@ mod tests {
     #[test]
     fn tick_accumulates_partial_ms() {
         let mut g = Game::new();
-        g.tick(400);
+        g.tick(40);
         assert_eq!(g.ticks, 0);
-        assert_eq!(g.accum_ms, 400);
+        assert_eq!(g.accum_ms, 40);
 
-        g.tick(600);
+        g.tick(60);
         assert_eq!(g.ticks, 1);
         assert_eq!(g.accum_ms, 0);
     }
@@ -213,9 +213,9 @@ mod tests {
     #[test]
     fn tick_can_roll_over_multiple_seconds() {
         let mut g = Game::new();
-        g.tick(2 * SIMULATED_SECOND_MS + 500);
+        g.tick(2 * SIMULATED_SECOND_MS + 50);
         assert_eq!(g.ticks, 2);
-        assert_eq!(g.accum_ms, 500);
+        assert_eq!(g.accum_ms, 50);
     }
 
     #[test]
