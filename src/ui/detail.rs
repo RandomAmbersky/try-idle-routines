@@ -79,8 +79,8 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
             lines.push(Line::from(" [X]"));
             lines.push(Line::from("Mission"));
             lines.push(Line::from(format!(
-                "Available: {}",
-                game.world.available_gather_missions
+                "Remaining sites: {}",
+                game.world.active_missions.len()
             )));
             lines.push(Line::from(""));
             lines.push(Line::from("Status"));
@@ -95,9 +95,9 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
                             n
                         )
                     }
-                    SquadState::Gathering { seconds_left } => format!(
-                        "Squad on site: 0 ({seconds_left}s left)"
-                    ),
+                    SquadState::Gathering { seconds_left } => {
+                        format!("Squad on site: 0 ({seconds_left}s left)")
+                    }
                     SquadState::MovingToBase => {
                         let n = game.route_to_mission.len();
                         format!(
@@ -145,11 +145,7 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
 fn mission_squad_row_active(game: &Game) -> bool {
     matches!(
         game.units.squads.first().map(|squad| squad.state),
-        Some(
-            SquadState::Gathering { .. }
-                | SquadState::MovingToMission
-                | SquadState::MovingToBase
-        )
+        Some(SquadState::Gathering { .. } | SquadState::MovingToMission | SquadState::MovingToBase)
     )
 }
 
