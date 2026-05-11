@@ -3,7 +3,7 @@ use std::io;
 use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 
 use crate::{
-    core::Game,
+    core::{Game, SIMULATED_SECOND_MS},
     input::Action,
     tui::Tui,
     ui::{self, DetailMouseTarget, MapTarget, Selection, SquadId},
@@ -46,7 +46,7 @@ impl App {
             terminal.draw(|f| ui::render(f, &layout, &self.game, mode_label, self.selection))?;
 
             let action = match mode {
-                RunMode::Running => crate::input::read_action_tick_aware(1000)?,
+                RunMode::Running => crate::input::read_action_tick_aware(SIMULATED_SECOND_MS)?,
                 RunMode::Paused => crate::input::read_action_blocking()?,
             };
 
@@ -59,11 +59,11 @@ impl App {
                     };
                 }
                 Action::Tick => {
-                    self.game.tick(1000);
+                    self.game.tick(SIMULATED_SECOND_MS);
                 }
                 Action::Step => {
                     if mode == RunMode::Paused {
-                        self.game.tick(1000);
+                        self.game.tick(SIMULATED_SECOND_MS);
                     }
                 }
                 Action::ClearSelection => {

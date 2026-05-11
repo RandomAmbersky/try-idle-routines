@@ -16,6 +16,7 @@ fn viewport_origin_1d(lo: u16, hi: u16, view: u16, map_len: u16, a: u16, b: u16)
     if map_len == 0 || view == 0 {
         return 0;
     }
+    
     let view = view.min(map_len);
     let max_o = map_len.saturating_sub(view);
     let lo = lo.min(map_len.saturating_sub(1));

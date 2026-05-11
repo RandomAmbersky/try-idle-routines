@@ -1,3 +1,6 @@
+/// Milliseconds per one simulated second (`Game::tick` boundary and runtime poll interval).
+pub const SIMULATED_SECOND_MS: u64 = 1000;
+
 const GATHER_DURATION_SECS: u32 = 3;
 const SILVER_PER_GATHER: u64 = 10;
 
@@ -75,8 +78,8 @@ impl Game {
 
     pub fn tick(&mut self, ms: u64) {
         self.accum_ms += ms;
-        while self.accum_ms >= 1000 {
-            self.accum_ms -= 1000;
+        while self.accum_ms >= SIMULATED_SECOND_MS {
+            self.accum_ms -= SIMULATED_SECOND_MS;
             self.ticks += 1;
             self.simulate_second();
         }
@@ -190,7 +193,7 @@ mod tests {
     #[test]
     fn tick_1000ms_increments_once() {
         let mut g = Game::new();
-        g.tick(1000);
+        g.tick(SIMULATED_SECOND_MS);
         assert_eq!(g.ticks, 1);
         assert_eq!(g.accum_ms, 0);
     }
@@ -210,7 +213,7 @@ mod tests {
     #[test]
     fn tick_can_roll_over_multiple_seconds() {
         let mut g = Game::new();
-        g.tick(2500);
+        g.tick(2 * SIMULATED_SECOND_MS + 500);
         assert_eq!(g.ticks, 2);
         assert_eq!(g.accum_ms, 500);
     }
@@ -232,7 +235,7 @@ mod tests {
                 if g.base.silver >= target {
                     return;
                 }
-                g.tick(1000);
+                g.tick(SIMULATED_SECOND_MS);
             }
             panic!("timeout waiting for silver {target}");
         };
@@ -243,7 +246,7 @@ mod tests {
                 {
                     return;
                 }
-                g.tick(1000);
+                g.tick(SIMULATED_SECOND_MS);
             }
             panic!("timeout waiting to return home");
         };
@@ -270,13 +273,13 @@ mod tests {
             return;
         }
 
-        g.tick(1000);
+        g.tick(SIMULATED_SECOND_MS);
         assert_eq!(g.units.squads[0].state, SquadState::MovingToMission);
         assert_eq!(g.units.squads[0].path_index, 0);
 
         let mut prev = g.route_to_mission[0];
         for _ in 0..last {
-            g.tick(1000);
+            g.tick(SIMULATED_SECOND_MS);
             assert_eq!(g.units.squads[0].state, SquadState::MovingToMission);
             let cur = g.route_to_mission[g.units.squads[0].path_index];
             let dc = prev.0.abs_diff(cur.0);
