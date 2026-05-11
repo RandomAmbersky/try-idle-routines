@@ -18,7 +18,7 @@ pub fn cell_for_mission(inner: Rect) -> (u16, u16) {
     let mut col = inner.width.saturating_mul(3) / 4;
     col = col.max(2).min(inner.width.saturating_sub(1));
     let (bc, br) = cell_for_base(inner);
-    let mut mr = row.min(inner.height.saturating_sub(1));
+    let mr = row.min(inner.height.saturating_sub(1));
     let mut mc = col;
     if mc == bc && mr == br {
         mc = (bc + 1).min(inner.width.saturating_sub(1));
