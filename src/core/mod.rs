@@ -309,4 +309,31 @@ mod tests {
         assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
         assert!(g.route_to_mission.is_empty());
     }
+
+    /// Spec: mission is removed from the active list when gathering completes (before base is reached).
+    #[test]
+    fn gather_completion_drops_mission_from_active_list_while_returning() {
+        let mission = (14u16, 50u16);
+        let mut g = Game::new_from_layout_for_test((10, 50), vec![mission, (30, 50)]);
+        g.route_to_mission = crate::map_geometry::route_outbound_cells_from(g.world.base_cell, mission);
+        assert!(
+            g.route_to_mission.last() == Some(&mission),
+            "route should end on mission cell"
+        );
+        g.units.squads[0].state = SquadState::Gathering { seconds_left: 1 };
+
+        assert_eq!(g.world.active_missions.len(), 2);
+        g.tick(SIMULATED_SECOND_MS);
+
+        assert!(
+            !g.world.active_missions.contains(&mission),
+            "marker must not correspond to an active mission during return"
+        );
+        assert_eq!(g.base.silver, SILVER_PER_GATHER);
+        assert!(matches!(
+            g.units.squads[0].state,
+            SquadState::MovingToBase
+        ));
+        assert!(g.gathering_just_completed);
+    }
 }
