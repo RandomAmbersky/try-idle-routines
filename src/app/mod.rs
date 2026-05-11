@@ -60,10 +60,20 @@ impl App {
                 }
                 Action::Tick => {
                     self.game.tick(SIMULATED_SECOND_MS);
+                    if self.game.gathering_just_completed
+                        && self.selection == Selection::Mission
+                    {
+                        self.selection = Selection::None;
+                    }
                 }
                 Action::Step => {
                     if mode == RunMode::Paused {
                         self.game.tick(SIMULATED_SECOND_MS);
+                        if self.game.gathering_just_completed
+                            && self.selection == Selection::Mission
+                        {
+                            self.selection = Selection::None;
+                        }
                     }
                 }
                 Action::ClearSelection => {
@@ -98,7 +108,12 @@ impl App {
                         }
                         DetailMouseTarget::None => {
                             if let Some((map_col, map_row)) =
-                                ui::terminal_xy_to_map_cell(layout.map_inner, column, row)
+                                ui::terminal_xy_to_map_cell_with_game(
+                                    layout.map_inner,
+                                    column,
+                                    row,
+                                    &self.game,
+                                )
                             {
                                 self.selection =
                                     if let Some(idx) = ui::squad_index_at_map_cell(
@@ -108,7 +123,7 @@ impl App {
                                     ) {
                                         Selection::Squad(SquadId(idx))
                                     } else {
-                                        match ui::map_target_at_cell(map_col, map_row) {
+                                        match ui::map_target_at_cell(&self.game, map_col, map_row) {
                                             MapTarget::Base => Selection::Base,
                                             MapTarget::Mission => Selection::Mission,
                                             MapTarget::Empty => Selection::None,
@@ -127,14 +142,8 @@ impl App {
 }
 
 fn sync_game_route(game: &mut Game) {
-    if game.route_map_w == ui::MAP_WIDTH && game.route_map_h == ui::MAP_HEIGHT {
-        return;
-    }
-
-    game.route_to_mission = ui::route_outbound_cells();
     game.route_map_w = ui::MAP_WIDTH;
     game.route_map_h = ui::MAP_HEIGHT;
-
     if !game.route_to_mission.is_empty() {
         let max_i = game.route_to_mission.len() - 1;
         game.units.squads[0].path_index = game.units.squads[0].path_index.min(max_i);

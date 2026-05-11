@@ -64,21 +64,37 @@ fn viewport_origin_1d(lo: u16, hi: u16, view: u16, map_len: u16, a: u16, b: u16)
 }
 
 /// Top-left of the visible map slice inside the map widget (viewport into the logical map).
+/// Uses the legacy fixed demo base/mission cells (tests only).
 pub fn map_view_origin(inner: Rect) -> (u16, u16) {
-    if inner.width == 0 || inner.height == 0 {
-        return (0, 0);
-    }
     let (bc, br) = cell_for_base();
     let (mc, mr) = cell_for_mission();
+    map_view_origin_for_points(inner, &[(bc, br), (mc, mr)])
+}
+
+/// Viewport that covers every point in `points` (non-empty).
+pub fn map_view_origin_for_points(inner: Rect, points: &[(u16, u16)]) -> (u16, u16) {
+    if inner.width == 0 || inner.height == 0 || points.is_empty() {
+        return (0, 0);
+    }
+    let mut min_c = u16::MAX;
+    let mut max_c = 0u16;
+    let mut min_r = u16::MAX;
+    let mut max_r = 0u16;
+    for &(c, r) in points {
+        min_c = min_c.min(c);
+        max_c = max_c.max(c);
+        min_r = min_r.min(r);
+        max_r = max_r.max(r);
+    }
     let ox = if inner.width >= MAP_WIDTH {
         0
     } else {
-        viewport_origin_1d(bc, mc, inner.width, MAP_WIDTH, bc, mc)
+        viewport_origin_1d(min_c, max_c, inner.width, MAP_WIDTH, min_c, max_c)
     };
     let oy = if inner.height >= MAP_HEIGHT {
         0
     } else {
-        viewport_origin_1d(br, mr, inner.height, MAP_HEIGHT, br, mr)
+        viewport_origin_1d(min_r, max_r, inner.height, MAP_HEIGHT, min_r, max_r)
     };
     (ox, oy)
 }
@@ -123,10 +139,15 @@ pub fn terminal_xy_to_cell(inner: Rect, column: u16, row: u16) -> Option<(u16, u
     Some((column - inner.x, row - inner.y))
 }
 
-/// Terminal coordinates → logical map cell, if the click is on a cell that exists on the fixed map.
-pub fn terminal_xy_to_map_cell(inner: Rect, column: u16, row: u16) -> Option<(u16, u16)> {
+/// Terminal coordinates → logical map cell (viewport follows `points`).
+pub fn terminal_xy_to_map_cell_for_points(
+    inner: Rect,
+    column: u16,
+    row: u16,
+    points: &[(u16, u16)],
+) -> Option<(u16, u16)> {
     let (vx, vy) = terminal_xy_to_cell(inner, column, row)?;
-    let (ox, oy) = map_view_origin(inner);
+    let (ox, oy) = map_view_origin_for_points(inner, points);
     let mx = ox.saturating_add(vx);
     let my = oy.saturating_add(vy);
     if mx < MAP_WIDTH && my < MAP_HEIGHT {
@@ -136,7 +157,15 @@ pub fn terminal_xy_to_map_cell(inner: Rect, column: u16, row: u16) -> Option<(u1
     }
 }
 
-pub fn map_target_at_cell(col: u16, row: u16) -> MapTarget {
+/// Legacy: fixed demo base/mission viewport.
+pub fn terminal_xy_to_map_cell(inner: Rect, column: u16, row: u16) -> Option<(u16, u16)> {
+    let (bc, br) = cell_for_base();
+    let (mc, mr) = cell_for_mission();
+    terminal_xy_to_map_cell_for_points(inner, column, row, &[(bc, br), (mc, mr)])
+}
+
+/// Hit-test for the fixed demo base/mission layout (tests).
+pub fn map_target_at_fixed_layout_cell(col: u16, row: u16) -> MapTarget {
     let (bc, br) = cell_for_base();
     let (mc, mr) = cell_for_mission();
     if col == bc && row == br {
@@ -186,9 +215,9 @@ mod tests {
         let (bc, br) = cell_for_base();
         let (mc, mr) = cell_for_mission();
         assert_ne!((bc, br), (mc, mr));
-        assert_eq!(map_target_at_cell(bc, br), MapTarget::Base);
-        assert_eq!(map_target_at_cell(mc, mr), MapTarget::Mission);
-        assert_eq!(map_target_at_cell(0, 0), MapTarget::Empty);
+        assert_eq!(map_target_at_fixed_layout_cell(bc, br), MapTarget::Base);
+        assert_eq!(map_target_at_fixed_layout_cell(mc, mr), MapTarget::Mission);
+        assert_eq!(map_target_at_fixed_layout_cell(0, 0), MapTarget::Empty);
     }
 
     #[test]
