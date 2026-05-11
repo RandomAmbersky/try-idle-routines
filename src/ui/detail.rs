@@ -71,7 +71,10 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
             push_blank_until(&mut lines, BASE_IDLE_ROSTER_START_REL_Y);
             for (squad_index, squad) in game.units.squads.iter().enumerate() {
                 if squad.state == SquadState::IdleAtBase {
-                    lines.push(Line::from(format!("Squad {squad_index}: idle")));
+                    lines.push(Line::from(format!(
+                        "Squad {squad_index}: idle (cargo {}/{})",
+                        squad.cargo_silver, squad.cargo_capacity
+                    )));
                 }
             }
         }
@@ -82,6 +85,13 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
                 "Remaining sites: {}",
                 game.world.active_missions.len()
             )));
+            let total_site: u64 = game
+                .world
+                .active_missions
+                .iter()
+                .map(|m| m.silver_remaining)
+                .sum();
+            lines.push(Line::from(format!("Silver on sites (sum): {total_site}")));
             lines.push(Line::from(""));
             lines.push(Line::from("Status"));
             push_blank_until(&mut lines, MISSION_ON_SITE_REL_Y);
@@ -133,6 +143,10 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
                         game.route_to_mission.len().max(1)
                     ))),
                 }
+                lines.push(Line::from(format!(
+                    "Cargo: {} / {}",
+                    squad.cargo_silver, squad.cargo_capacity
+                )));
             } else {
                 lines.push(Line::from("State: unknown squad"));
             }
