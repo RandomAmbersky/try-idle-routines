@@ -539,4 +539,41 @@ mod tests {
         assert_eq!(g.units.squads[0].cargo_silver, 0);
         assert_eq!(g.base.silver, 15);
     }
+
+    #[test]
+    fn chaining_picks_closest_next_mission_from_current_cell() {
+        let base = (10u16, 50u16);
+        let empty_site = (12u16, 48u16);
+        let closer = (13u16, 48u16);
+        let farther = (30u16, 20u16);
+
+        let mut g = Game::new_from_layout_for_test(
+            base,
+            vec![
+                // This site will be depleted first.
+                GatherMission::new(empty_site, 10),
+                // Two remaining candidates: must pick the closer from `empty_site`.
+                GatherMission::new(closer, 100),
+                GatherMission::new(farther, 100),
+            ],
+        );
+
+        g.units.squads[0].cargo_capacity = 30;
+        g.route_to_mission = crate::map_geometry::route_outbound_cells_from(base, empty_site);
+        g.units.squads[0].state = SquadState::Gathering { seconds_left: 1 };
+
+        // One gather completion fully depletes `empty_site`.
+        g.tick(SIMULATED_SECOND_MS);
+
+        assert!(
+            !g.world.active_missions.iter().any(|m| m.cell == empty_site),
+            "depleted site should be removed from active_missions"
+        );
+        assert!(matches!(g.units.squads[0].state, SquadState::MovingToMission));
+        assert_eq!(
+            g.route_to_mission.last(),
+            Some(&closer),
+            "must pick closest next mission from current cell"
+        );
+    }
 }
