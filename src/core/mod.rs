@@ -2,17 +2,38 @@
 pub const SIMULATED_SECOND_MS: u64 = 100;
 
 mod world_gen;
-pub use world_gen::{generate_base_and_three_missions, pick_closest_mission_index};
+pub use world_gen::{generate_base_and_three_missions, pick_closest_gather_mission_index};
 
 use rand::thread_rng;
 
 const GATHER_DURATION_SECS: u32 = 3;
 const SILVER_PER_GATHER: u64 = 10;
 
+/// Initial and remaining silver on a gather site (spec: mission stays until `silver_remaining == 0`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GatherMission {
+    pub cell: (u16, u16),
+    pub silver_initial: u64,
+    pub silver_remaining: u64,
+}
+
+impl GatherMission {
+    pub fn new(cell: (u16, u16), silver: u64) -> Self {
+        Self {
+            cell,
+            silver_initial: silver,
+            silver_remaining: silver,
+        }
+    }
+}
+
+pub const DEFAULT_MISSION_SILVER_POOL: u64 = 100;
+pub const DEFAULT_SQUAD_CARGO_CAPACITY: u64 = 30;
+
 #[derive(Debug, Default)]
 pub struct World {
     pub base_cell: (u16, u16),
-    pub active_missions: Vec<(u16, u16)>,
+    pub active_missions: Vec<GatherMission>,
 }
 
 #[derive(Debug, Default)]
@@ -37,6 +58,8 @@ pub struct Squad {
     pub state: SquadState,
     /// Index into `Game::route_to_mission` (outbound: forward to mission; return: forward to base).
     pub path_index: usize,
+    pub cargo_silver: u64,
+    pub cargo_capacity: u64,
 }
 
 #[derive(Debug)]
@@ -50,6 +73,8 @@ impl Default for Units {
             squads: vec![Squad {
                 state: SquadState::IdleAtBase,
                 path_index: 0,
+                cargo_silver: 0,
+                cargo_capacity: DEFAULT_SQUAD_CARGO_CAPACITY,
             }],
         }
     }
@@ -77,7 +102,7 @@ impl Game {
 
     pub fn new_from_layout_for_test(
         base_cell: (u16, u16),
-        active_missions: Vec<(u16, u16)>,
+        active_missions: Vec<GatherMission>,
     ) -> Self {
         Self {
             world: World {
@@ -113,10 +138,12 @@ impl Game {
                 if self.world.active_missions.is_empty() {
                     return;
                 }
-                let mission_i =
-                    pick_closest_mission_index(self.world.base_cell, &self.world.active_missions)
-                        .expect("non-empty mission list has a closest mission");
-                let mission = self.world.active_missions[mission_i];
+                let mission_i = pick_closest_gather_mission_index(
+                    self.world.base_cell,
+                    &self.world.active_missions,
+                )
+                .expect("non-empty mission list has a closest mission");
+                let mission = self.world.active_missions[mission_i].cell;
                 self.route_to_mission =
                     crate::map_geometry::route_outbound_cells_from(self.world.base_cell, mission);
                 squad.state = SquadState::MovingToMission;
@@ -149,7 +176,7 @@ impl Game {
                             .world
                             .active_missions
                             .iter()
-                            .position(|&cell| cell == mission)
+                            .position(|m| m.cell == mission)
                         {
                             self.world.active_missions.remove(i);
                         }
@@ -248,7 +275,13 @@ mod tests {
 
     #[test]
     fn autonomous_gather_loop_adds_silver_every_gather_cycle() {
-        let mut g = Game::new_from_layout_for_test((10, 50), vec![(12, 48), (20, 50)]);
+        let mut g = Game::new_from_layout_for_test(
+            (10, 50),
+            vec![
+                GatherMission::new((12, 48), DEFAULT_MISSION_SILVER_POOL),
+                GatherMission::new((20, 50), DEFAULT_MISSION_SILVER_POOL),
+            ],
+        );
 
         assert_eq!(g.world.active_missions.len(), 2);
         assert_eq!(g.base.silver, 0);
@@ -287,7 +320,10 @@ mod tests {
 
     #[test]
     fn moving_to_mission_advances_one_route_index_per_tick() {
-        let mut g = Game::new_from_layout_for_test((10, 50), vec![(16, 48)]);
+        let mut g = Game::new_from_layout_for_test(
+            (10, 50),
+            vec![GatherMission::new((16, 48), DEFAULT_MISSION_SILVER_POOL)],
+        );
         g.tick(SIMULATED_SECOND_MS);
         let last = g.route_to_mission.len().saturating_sub(1);
         if last == 0 {
@@ -326,8 +362,15 @@ mod tests {
     #[test]
     fn gather_completion_drops_mission_from_active_list_while_returning() {
         let mission = (14u16, 50u16);
-        let mut g = Game::new_from_layout_for_test((10, 50), vec![mission, (30, 50)]);
-        g.route_to_mission = crate::map_geometry::route_outbound_cells_from(g.world.base_cell, mission);
+        let mut g = Game::new_from_layout_for_test(
+            (10, 50),
+            vec![
+                GatherMission::new(mission, DEFAULT_MISSION_SILVER_POOL),
+                GatherMission::new((30, 50), DEFAULT_MISSION_SILVER_POOL),
+            ],
+        );
+        g.route_to_mission =
+            crate::map_geometry::route_outbound_cells_from(g.world.base_cell, mission);
         assert!(
             g.route_to_mission.last() == Some(&mission),
             "route should end on mission cell"
@@ -338,14 +381,11 @@ mod tests {
         g.tick(SIMULATED_SECOND_MS);
 
         assert!(
-            !g.world.active_missions.contains(&mission),
+            !g.world.active_missions.iter().any(|m| m.cell == mission),
             "marker must not correspond to an active mission during return"
         );
         assert_eq!(g.base.silver, SILVER_PER_GATHER);
-        assert!(matches!(
-            g.units.squads[0].state,
-            SquadState::MovingToBase
-        ));
+        assert!(matches!(g.units.squads[0].state, SquadState::MovingToBase));
         assert!(g.gathering_just_completed);
         assert_eq!(g.route_to_mission.first(), Some(&mission));
         assert_eq!(

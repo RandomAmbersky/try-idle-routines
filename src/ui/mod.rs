@@ -3,9 +3,9 @@ mod layout;
 mod map_layout;
 mod selection;
 
-pub use detail::{detail_mouse_target, format_detail, DetailMouseTarget};
-pub use layout::{compute_layout, MainLayout};
-pub use map_layout::{map_view_origin_for_points, MapTarget, MAP_HEIGHT, MAP_WIDTH};
+pub use detail::{DetailMouseTarget, detail_mouse_target, format_detail};
+pub use layout::{MainLayout, compute_layout};
+pub use map_layout::{MAP_HEIGHT, MAP_WIDTH, MapTarget, map_view_origin_for_points};
 pub use selection::{Selection, SquadId};
 
 /// Squad drawn at `(col, row)` on the logical map, if any (`S` glyph in the map widget).
@@ -21,19 +21,19 @@ pub fn squad_index_at_map_cell(game: &Game, col: u16, row: u16) -> Option<usize>
 }
 
 use ratatui::{
+    Frame,
     style::Style,
     text::{Line, Text},
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
-use crate::core::{Game, Squad, SquadState};
+use crate::core::{DEFAULT_MISSION_SILVER_POOL, Game, GatherMission, Squad, SquadState};
 
 /// Logical cells used to fit the viewport (base, active missions, squad).
 fn map_viewport_points(game: &Game) -> Vec<(u16, u16)> {
     let mut pts = Vec::with_capacity(2 + game.world.active_missions.len());
     pts.push(game.world.base_cell);
-    pts.extend_from_slice(&game.world.active_missions);
+    pts.extend(game.world.active_missions.iter().map(|m| m.cell));
     if let Some(squad) = game.units.squads.first() {
         if let Some(c) = squad_cell_on_map(game, squad) {
             pts.push(c);
@@ -49,7 +49,7 @@ pub fn map_target_at_cell(game: &Game, col: u16, row: u16) -> MapTarget {
         .world
         .active_missions
         .iter()
-        .any(|&m| m == (col, row))
+        .any(|m| m.cell == (col, row))
     {
         MapTarget::Mission
     } else {
@@ -104,14 +104,19 @@ fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
     let (base_col, base_row) = game.world.base_cell;
     logical[usize::from(base_row)][usize::from(base_col)] = 'B';
 
-    let urgent_mission = game.units.squads.first().and_then(|squad| match squad.state {
-        SquadState::MovingToMission | SquadState::Gathering { .. } => {
-            game.route_to_mission.last().copied()
-        }
-        _ => None,
-    });
+    let urgent_mission = game
+        .units
+        .squads
+        .first()
+        .and_then(|squad| match squad.state {
+            SquadState::MovingToMission | SquadState::Gathering { .. } => {
+                game.route_to_mission.last().copied()
+            }
+            _ => None,
+        });
 
-    for &(mc, mr) in &game.world.active_missions {
+    for m in &game.world.active_missions {
+        let (mc, mr) = m.cell;
         let glyph = if urgent_mission == Some((mc, mr)) {
             '!'
         } else {
@@ -164,26 +169,30 @@ fn squad_cell_on_map(game: &Game, squad: &Squad) -> Option<(u16, u16)> {
 
 #[cfg(test)]
 mod render_tests {
-    use ratatui::{backend::TestBackend, buffer::Buffer, layout::Rect, Terminal};
+    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, layout::Rect};
 
     use super::*;
 
     #[test]
-    fn render_uses_provided_layout_for_map_detail_and_footer(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn render_uses_provided_layout_for_map_detail_and_footer()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Large enough that map_inner fits the full 100×100 logical map (no viewport crop).
         let backend = TestBackend::new(140, 120);
         let mut terminal = Terminal::new(backend)?;
         let game = Game::new_from_layout_for_test(
             (1, 50),
-            vec![(75, 50), (80, 55), (70, 45)],
+            vec![
+                GatherMission::new((75, 50), DEFAULT_MISSION_SILVER_POOL),
+                GatherMission::new((80, 55), DEFAULT_MISSION_SILVER_POOL),
+                GatherMission::new((70, 45), DEFAULT_MISSION_SILVER_POOL),
+            ],
         );
         let layout = compute_layout(Rect::new(0, 0, 140, 120));
 
         let frame = terminal.draw(|f| render(f, &layout, &game, "paused", Selection::Mission))?;
 
         let (base_col, base_row) = game.world.base_cell;
-        let (mission_col, mission_row) = game.world.active_missions[0];
+        let (mission_col, mission_row) = game.world.active_missions[0].cell;
         assert_eq!(
             frame.buffer[(layout.map_inner.x + base_col, layout.map_inner.y + base_row)].symbol(),
             "B"
@@ -193,7 +202,7 @@ mod render_tests {
                 layout.map_inner.x + mission_col,
                 layout.map_inner.y + mission_row
             )]
-            .symbol(),
+                .symbol(),
             "M"
         );
 
@@ -205,7 +214,10 @@ mod render_tests {
 
     #[test]
     fn squad_not_on_map_when_idle_at_base_shows_when_deployed() {
-        let mut game = Game::new_from_layout_for_test((10, 10), vec![(20, 10)]);
+        let mut game = Game::new_from_layout_for_test(
+            (10, 10),
+            vec![GatherMission::new((20, 10), DEFAULT_MISSION_SILVER_POOL)],
+        );
         let (bc, br) = game.world.base_cell;
         assert_eq!(squad_index_at_map_cell(&game, bc, br), None);
 
