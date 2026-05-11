@@ -100,11 +100,20 @@ impl App {
                             if let Some((map_col, map_row)) =
                                 ui::terminal_xy_to_map_cell(layout.map_inner, column, row)
                             {
-                                self.selection = match ui::map_target_at_cell(map_col, map_row) {
-                                    MapTarget::Base => Selection::Base,
-                                    MapTarget::Mission => Selection::Mission,
-                                    MapTarget::Empty => Selection::None,
-                                };
+                                self.selection =
+                                    if let Some(idx) = ui::squad_index_at_map_cell(
+                                        &self.game,
+                                        map_col,
+                                        map_row,
+                                    ) {
+                                        Selection::Squad(SquadId(idx))
+                                    } else {
+                                        match ui::map_target_at_cell(map_col, map_row) {
+                                            MapTarget::Base => Selection::Base,
+                                            MapTarget::Mission => Selection::Mission,
+                                            MapTarget::Empty => Selection::None,
+                                        }
+                                    };
                             }
                         }
                     }

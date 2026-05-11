@@ -11,6 +11,18 @@ pub use map_layout::{
 };
 pub use selection::{Selection, SquadId};
 
+/// Squad drawn at `(col, row)` on the logical map, if any (`S` glyph in the map widget).
+pub fn squad_index_at_map_cell(game: &Game, col: u16, row: u16) -> Option<usize> {
+    for (squad_index, squad) in game.units.squads.iter().enumerate() {
+        if let Some((sc, sr)) = squad_cell_on_map(game, squad) {
+            if sc == col && sr == row {
+                return Some(squad_index);
+            }
+        }
+    }
+    None
+}
+
 use ratatui::{
     style::Style,
     text::{Line, Text},
@@ -155,6 +167,15 @@ mod render_tests {
         assert!(row_text(frame.buffer, layout.footer_block.y).contains("Esc clear"));
 
         Ok(())
+    }
+
+    #[test]
+    fn squad_index_at_map_cell_finds_idle_squad() {
+        let game = Game::new();
+        let mission = cell_for_mission();
+        let (c, r) = map_layout::cell_step_toward(cell_for_base(), mission);
+        assert_eq!(squad_index_at_map_cell(&game, c, r), Some(0));
+        assert_eq!(squad_index_at_map_cell(&game, 0, 0), None);
     }
 
     fn row_text(buffer: &Buffer, y: u16) -> String {
