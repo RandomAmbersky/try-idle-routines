@@ -1,7 +1,9 @@
 use std::io;
 
 use crossterm::{
-    ExecutableCommand, cursor,
+    ExecutableCommand,
+    cursor,
+    event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
@@ -15,6 +17,7 @@ impl Tui {
         let mut stdout = io::stdout();
         terminal::enable_raw_mode()?;
         stdout.execute(EnterAlternateScreen)?;
+        stdout.execute(EnableMouseCapture)?;
         stdout.execute(cursor::Hide)?;
 
         Ok(Self {
@@ -33,6 +36,7 @@ impl Tui {
         }
 
         self.stdout.execute(cursor::Show)?;
+        self.stdout.execute(DisableMouseCapture)?;
         self.stdout.execute(LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
 
