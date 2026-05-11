@@ -28,14 +28,14 @@ pub enum SquadState {
     Gathering {
         seconds_left: u32,
     },
-    /// One grid cell per second back along the same route (index toward 0).
+    /// One grid cell per second along the **return** route (mission→base), recomputed when return starts.
     MovingToBase,
 }
 
 #[derive(Debug)]
 pub struct Squad {
     pub state: SquadState,
-    /// Index into `Game::route_to_mission` while moving or on mission cell while gathering.
+    /// Index into `Game::route_to_mission` (outbound: forward to mission; return: forward to base).
     pub path_index: usize,
 }
 
@@ -62,7 +62,7 @@ pub struct Game {
     pub units: Units,
     pub ticks: u64,
     pub accum_ms: u64,
-    /// Grid cells from first step off-base toward mission (last cell is mission), map-inner size `(route_map_w, route_map_h)`.
+    /// Outbound: first step off base → mission (last = mission). Return: mission cell, then steps toward base (last = base).
     pub route_to_mission: Vec<(u16, u16)>,
     pub route_map_w: u16,
     pub route_map_h: u16,
@@ -143,7 +143,8 @@ impl Game {
                 1 => {
                     self.base.silver = self.base.silver.saturating_add(SILVER_PER_GATHER);
                     self.gathering_just_completed = true;
-                    if let Some(&mission) = self.route_to_mission.last() {
+                    let mission_cell = self.route_to_mission.last().copied();
+                    if let Some(mission) = mission_cell {
                         if let Some(i) = self
                             .world
                             .active_missions
@@ -153,12 +154,22 @@ impl Game {
                             self.world.active_missions.remove(i);
                         }
                     }
+                    // New path to base (not reverse of outbound) so future map changes stay valid.
+                    self.route_to_mission = match mission_cell {
+                        Some(mission) => {
+                            let steps = crate::map_geometry::route_outbound_cells_from(
+                                mission,
+                                self.world.base_cell,
+                            );
+                            let mut home = Vec::with_capacity(steps.len().saturating_add(1));
+                            home.push(mission);
+                            home.extend(steps);
+                            home
+                        }
+                        None => Vec::new(),
+                    };
                     squad.state = SquadState::MovingToBase;
-                    if route_len > 0 {
-                        squad.path_index = route_len - 1;
-                    } else {
-                        squad.path_index = 0;
-                    }
+                    squad.path_index = 0;
                 }
                 n => {
                     squad.state = SquadState::Gathering {
@@ -172,8 +183,9 @@ impl Game {
                     squad.path_index = 0;
                     return;
                 }
-                if squad.path_index > 0 {
-                    squad.path_index -= 1;
+                let last = route_len - 1;
+                if squad.path_index < last {
+                    squad.path_index += 1;
                 } else {
                     squad.state = SquadState::IdleAtBase;
                     squad.path_index = 0;
@@ -335,5 +347,11 @@ mod tests {
             SquadState::MovingToBase
         ));
         assert!(g.gathering_just_completed);
+        assert_eq!(g.route_to_mission.first(), Some(&mission));
+        assert_eq!(
+            g.route_to_mission.last(),
+            Some(&g.world.base_cell),
+            "return route must end on current base"
+        );
     }
 }

@@ -386,7 +386,7 @@ In `Gathering { seconds_left }` when `seconds_left == 1`:
 - Set `gathering_just_completed = true`.
 - Remove **one** mission from `world.active_missions` where `mission_cell == *route_to_mission.last().expect("non-empty while gathering on site")` (if route empty edge case, match spec: treat as instant gather site = base — should not happen if dispatch always builds non-empty route when distance > 0; if base == mission illegal).
 
-Then transition to `MovingToBase` with `path_index = route_len - 1` as today.
+Then build a **fresh** return polyline `mission → base` with `route_outbound_cells_from(mission, base_cell)`, prepend `mission` so `path_index == 0` is the gather cell, set `MovingToBase`, `path_index = 0`, and advance **forward** along that vector each second (not reverse of outbound).
 
 - [ ] **Step 5: `tick` and `gathering_just_completed`**
 
@@ -555,7 +555,7 @@ git commit -m "fix(ui): mission detail matches active mission list"
 | Remove mission at gather completion | Task 4 Step 4 |
 | Shortest route next + `(row,col)` tie-break | Task 3 `pick_closest_mission_index`, Task 4 dispatch |
 | No respawn when empty | Task 4 Step 2 test + idle branch |
-| Return path unchanged geometry | Task 2 `map_geometry::route_outbound_cells_from` reused |
+| Return path new mission→base polyline | Task 2 `route_outbound_cells_from` reused; forward walk |
 | No `core` → `ui` cycle | Task 2 `map_geometry` module |
 | Map glyphs + `S` over `B` at idle | Task 6 |
 | Viewport over all points | Task 6 Step 1 |

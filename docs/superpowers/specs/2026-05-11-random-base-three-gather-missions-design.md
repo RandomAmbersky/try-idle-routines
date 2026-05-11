@@ -48,8 +48,8 @@ This spec is **gameplay + map truth**. It **updates** map/mission assumptions do
 ## Routing
 
 - **Outbound:** from base to the **chosen** mission cell using the same geometric rules as the current codebase: step off base toward mission, then a **king-adjacent** polyline (e.g. Bresenham inclusive) from the first step through the mission cell.
-- **Return:** traverse the same cell sequence **backward** at the same **one cell per simulated second** rate as today.
-- While returning, the route still references cells that included the mission site; the **glyph** for the mission is gone, but the squad **still walks** those coordinates until home.
+- **Return:** build a **new** route from the **mission site** to the **current base** cell using the **same geometric rules** (not the reverse of the outbound polyline). The squad moves **forward** along that new path at **one map cell per simulated second**. Rationale: after a mission the map may change (terrain, blockers, bases moving, etc.); the old outbound trace may no longer be valid or optimal.
+- While returning, the **mission glyph** is already gone from the active list; the squad follows the freshly computed path to the base.
 
 ## Next mission selection (squad idle at base)
 
@@ -96,4 +96,4 @@ This spec is **gameplay + map truth**. It **updates** map/mission assumptions do
 | Mission done | Remove from list at gather completion (silver applied); no map marker |
 | Next target | Shortest outbound route from base; tie `(row, col)` |
 | All cleared | Squad idle; no new missions until new game |
-| Return path | Same geometry as today, backward, mission cell not shown as `M` |
+| Return path | New route mission→base (same rules as outbound), forward; mission not in active list |
