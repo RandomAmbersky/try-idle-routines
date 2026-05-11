@@ -6,8 +6,8 @@ mod selection;
 pub use detail::{detail_mouse_target, format_detail, DetailMouseTarget};
 pub use layout::{compute_layout, MainLayout};
 pub use map_layout::{
-    cell_for_base, cell_for_mission, map_target_at_cell, route_outbound_cells, terminal_xy_to_cell,
-    MapTarget,
+    cell_for_base, cell_for_mission, map_target_at_cell, route_outbound_cells, terminal_xy_to_map_cell,
+    MapTarget, MAP_HEIGHT, MAP_WIDTH,
 };
 pub use selection::{Selection, SquadId};
 
@@ -19,6 +19,8 @@ use ratatui::{
 };
 
 use crate::core::{Game, Squad, SquadState};
+
+use map_layout::map_view_origin;
 
 pub fn render(
     frame: &mut Frame,
@@ -44,58 +46,74 @@ pub fn render(
 }
 
 fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
-    let width = usize::from(inner.width);
-    let height = usize::from(inner.height);
-    let mut grid = vec![vec![' '; width]; height];
+    let vw = usize::from(inner.width);
+    let vh = usize::from(inner.height);
+    if vw == 0 || vh == 0 {
+        return Text::default();
+    }
 
-    if inner.width > 0 && inner.height > 0 {
-        let (base_col, base_row) = cell_for_base(inner);
-        grid[usize::from(base_row)][usize::from(base_col)] = 'B';
+    let mw = usize::from(MAP_WIDTH);
+    let mh = usize::from(MAP_HEIGHT);
+    let mut logical = vec![vec!['.'; mw]; mh];
 
-        let (mission_col, mission_row) = cell_for_mission(inner);
-        let mission_glyph = if game
-            .units
-            .squads
-            .iter()
-            .any(|squad| !matches!(squad.state, SquadState::IdleAtBase))
-        {
-            '!'
-        } else {
-            'M'
-        };
-        grid[usize::from(mission_row)][usize::from(mission_col)] = mission_glyph;
+    let (base_col, base_row) = cell_for_base();
+    logical[usize::from(base_row)][usize::from(base_col)] = 'B';
 
-        for squad in &game.units.squads {
-            if let Some((sc, sr)) = squad_cell_on_map(inner, game, squad) {
-                let uc = usize::from(sc);
-                let ur = usize::from(sr);
-                if uc < width && ur < height {
-                    grid[ur][uc] = 'S';
-                }
+    let (mission_col, mission_row) = cell_for_mission();
+    let mission_glyph = if game
+        .units
+        .squads
+        .iter()
+        .any(|squad| !matches!(squad.state, SquadState::IdleAtBase))
+    {
+        '!'
+    } else {
+        'M'
+    };
+    logical[usize::from(mission_row)][usize::from(mission_col)] = mission_glyph;
+
+    for squad in &game.units.squads {
+        if let Some((sc, sr)) = squad_cell_on_map(game, squad) {
+            let uc = usize::from(sc);
+            let ur = usize::from(sr);
+            if uc < mw && ur < mh {
+                logical[ur][uc] = 'S';
             }
         }
     }
 
-    Text::from(
-        grid.into_iter()
-            .map(|row| Line::from(row.into_iter().collect::<String>()))
-            .collect::<Vec<_>>(),
-    )
+    let (ox, oy) = map_view_origin(inner);
+    let lines: Vec<Line> = (0..vh)
+        .map(|dy| {
+            let my = usize::from(oy).saturating_add(dy);
+            let row: String = (0..vw)
+                .map(|dx| {
+                    let mx = usize::from(ox).saturating_add(dx);
+                    if mx < mw && my < mh {
+                        logical[my][mx]
+                    } else {
+                        ' '
+                    }
+                })
+                .collect();
+            Line::from(row)
+        })
+        .collect();
+
+    Text::from(lines)
 }
 
-fn squad_cell_on_map(inner: ratatui::layout::Rect, game: &Game, squad: &Squad) -> Option<(u16, u16)> {
-    let mission = cell_for_mission(inner);
+fn squad_cell_on_map(game: &Game, squad: &Squad) -> Option<(u16, u16)> {
+    let mission = cell_for_mission();
     match squad.state {
         SquadState::IdleAtBase => Some(map_layout::cell_step_toward(
-            inner,
-            cell_for_base(inner),
+            cell_for_base(),
             mission,
         )),
         SquadState::MovingToMission => game.route_to_mission.get(squad.path_index).copied(),
         SquadState::Gathering { .. } => Some(map_layout::cell_step_toward(
-            inner,
             mission,
-            cell_for_base(inner),
+            cell_for_base(),
         )),
         SquadState::MovingToBase => game.route_to_mission.get(squad.path_index).copied(),
     }
@@ -110,15 +128,16 @@ mod render_tests {
     #[test]
     fn render_uses_provided_layout_for_map_detail_and_footer(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let backend = TestBackend::new(80, 24);
+        // Large enough that map_inner fits the full 100×100 logical map (no viewport crop).
+        let backend = TestBackend::new(140, 120);
         let mut terminal = Terminal::new(backend)?;
         let game = Game::new();
-        let layout = compute_layout(Rect::new(0, 0, 80, 24));
+        let layout = compute_layout(Rect::new(0, 0, 140, 120));
 
         let frame = terminal.draw(|f| render(f, &layout, &game, "paused", Selection::Mission))?;
 
-        let (base_col, base_row) = cell_for_base(layout.map_inner);
-        let (mission_col, mission_row) = cell_for_mission(layout.map_inner);
+        let (base_col, base_row) = cell_for_base();
+        let (mission_col, mission_row) = cell_for_mission();
         assert_eq!(
             frame.buffer[(layout.map_inner.x + base_col, layout.map_inner.y + base_row)].symbol(),
             "B"
@@ -128,7 +147,7 @@ mod render_tests {
                 layout.map_inner.x + mission_col,
                 layout.map_inner.y + mission_row
             )]
-                .symbol(),
+            .symbol(),
             "M"
         );
 

@@ -151,21 +151,17 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use ratatui::layout::Rect;
-
     use super::*;
 
-    fn sync_route_like_app(g: &mut Game, term_w: u16, term_h: u16) {
-        use crate::ui::{compute_layout, route_outbound_cells};
+    fn sync_route_like_app(g: &mut Game) {
+        use crate::ui::{route_outbound_cells, MAP_HEIGHT, MAP_WIDTH};
 
-        let area = Rect::new(0, 0, term_w, term_h);
-        let inner = compute_layout(area).map_inner;
-        if g.route_map_w == inner.width && g.route_map_h == inner.height {
+        if g.route_map_w == MAP_WIDTH && g.route_map_h == MAP_HEIGHT {
             return;
         }
-        g.route_to_mission = route_outbound_cells(Rect::new(0, 0, inner.width, inner.height));
-        g.route_map_w = inner.width;
-        g.route_map_h = inner.height;
+        g.route_to_mission = route_outbound_cells();
+        g.route_map_w = MAP_WIDTH;
+        g.route_map_h = MAP_HEIGHT;
         if !g.route_to_mission.is_empty() {
             let max_i = g.route_to_mission.len() - 1;
             g.units.squads[0].path_index = g.units.squads[0].path_index.min(max_i);
@@ -222,7 +218,7 @@ mod tests {
     #[test]
     fn autonomous_gather_loop_adds_silver_every_gather_cycle() {
         let mut g = Game::new();
-        sync_route_like_app(&mut g, 80, 24);
+        sync_route_like_app(&mut g);
         assert!(
             !g.route_to_mission.is_empty(),
             "route needed for travel simulation"
@@ -268,7 +264,7 @@ mod tests {
     #[test]
     fn moving_to_mission_advances_one_route_index_per_tick() {
         let mut g = Game::new();
-        sync_route_like_app(&mut g, 80, 24);
+        sync_route_like_app(&mut g);
         let last = g.route_to_mission.len().saturating_sub(1);
         if last == 0 {
             return;

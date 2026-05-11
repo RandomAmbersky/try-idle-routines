@@ -42,7 +42,7 @@ impl App {
             let size = terminal.size()?;
             let area = Rect::new(0, 0, size.width, size.height);
             let layout = ui::compute_layout(area);
-            sync_game_route(&mut self.game, layout.map_inner);
+            sync_game_route(&mut self.game);
             terminal.draw(|f| ui::render(f, &layout, &self.game, mode_label, self.selection))?;
 
             let action = match mode {
@@ -97,14 +97,10 @@ impl App {
                             self.selection = Selection::Squad(SquadId(squad_index));
                         }
                         DetailMouseTarget::None => {
-                            if let Some((cell_col, cell_row)) =
-                                ui::terminal_xy_to_cell(layout.map_inner, column, row)
+                            if let Some((map_col, map_row)) =
+                                ui::terminal_xy_to_map_cell(layout.map_inner, column, row)
                             {
-                                self.selection = match ui::map_target_at_cell(
-                                    layout.map_inner,
-                                    cell_col,
-                                    cell_row,
-                                ) {
+                                self.selection = match ui::map_target_at_cell(map_col, map_row) {
                                     MapTarget::Base => Selection::Base,
                                     MapTarget::Mission => Selection::Mission,
                                     MapTarget::Empty => Selection::None,
@@ -121,15 +117,14 @@ impl App {
     }
 }
 
-fn sync_game_route(game: &mut Game, inner: Rect) {
-    if game.route_map_w == inner.width && game.route_map_h == inner.height {
+fn sync_game_route(game: &mut Game) {
+    if game.route_map_w == ui::MAP_WIDTH && game.route_map_h == ui::MAP_HEIGHT {
         return;
     }
 
-    let r = Rect::new(0, 0, inner.width, inner.height);
-    game.route_to_mission = ui::route_outbound_cells(r);
-    game.route_map_w = inner.width;
-    game.route_map_h = inner.height;
+    game.route_to_mission = ui::route_outbound_cells();
+    game.route_map_w = ui::MAP_WIDTH;
+    game.route_map_h = ui::MAP_HEIGHT;
 
     if !game.route_to_mission.is_empty() {
         let max_i = game.route_to_mission.len() - 1;
