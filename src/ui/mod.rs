@@ -1,7 +1,9 @@
 mod layout;
+mod map_layout;
 mod selection;
 
 pub use layout::{compute_layout, MainLayout};
+pub use map_layout::{MapTarget, cell_for_base, cell_for_mission, map_target_at_cell, terminal_xy_to_cell};
 pub use selection::{Selection, SquadId};
 
 use ratatui::{
