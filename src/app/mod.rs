@@ -42,6 +42,7 @@ impl App {
             let size = terminal.size()?;
             let area = Rect::new(0, 0, size.width, size.height);
             let layout = ui::compute_layout(area);
+            sync_game_route(&mut self.game, layout.map_inner);
             terminal.draw(|f| ui::render(f, &layout, &self.game, mode_label, self.selection))?;
 
             let action = match mode {
@@ -117,5 +118,21 @@ impl App {
         }
 
         Ok(())
+    }
+}
+
+fn sync_game_route(game: &mut Game, inner: Rect) {
+    if game.route_map_w == inner.width && game.route_map_h == inner.height {
+        return;
+    }
+
+    let r = Rect::new(0, 0, inner.width, inner.height);
+    game.route_to_mission = ui::route_outbound_cells(r);
+    game.route_map_w = inner.width;
+    game.route_map_h = inner.height;
+
+    if !game.route_to_mission.is_empty() {
+        let max_i = game.route_to_mission.len() - 1;
+        game.units.squads[0].path_index = game.units.squads[0].path_index.min(max_i);
     }
 }

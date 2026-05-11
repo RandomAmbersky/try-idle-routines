@@ -14,16 +14,18 @@ pub struct Base {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SquadState {
     IdleAtBase,
-    /// Moving from base toward the mission site (UI shows on map).
-    TravelingToMission { seconds_left: u32 },
+    /// One grid cell per simulated second along `Game::route_to_mission`.
+    MovingToMission,
     Gathering { seconds_left: u32 },
-    /// Heading home after completing work on site.
-    ReturningToBase { seconds_left: u32 },
+    /// One grid cell per second back along the same route (index toward 0).
+    MovingToBase,
 }
 
 #[derive(Debug)]
 pub struct Squad {
     pub state: SquadState,
+    /// Index into `Game::route_to_mission` while moving or on mission cell while gathering.
+    pub path_index: usize,
 }
 
 #[derive(Debug)]
@@ -36,6 +38,7 @@ impl Default for Units {
         Self {
             squads: vec![Squad {
                 state: SquadState::IdleAtBase,
+                path_index: 0,
             }],
         }
     }
@@ -48,6 +51,10 @@ pub struct Game {
     pub units: Units,
     pub ticks: u64,
     pub accum_ms: u64,
+    /// Grid cells from first step off-base toward mission (last cell is mission), map-inner size `(route_map_w, route_map_h)`.
+    pub route_to_mission: Vec<(u16, u16)>,
+    pub route_map_w: u16,
+    pub route_map_h: u16,
 }
 
 impl Game {
@@ -60,6 +67,9 @@ impl Game {
             units: Units::default(),
             ticks: 0,
             accum_ms: 0,
+            route_to_mission: Vec::new(),
+            route_map_w: 0,
+            route_map_h: 0,
         }
     }
 
@@ -73,30 +83,40 @@ impl Game {
     }
 
     fn simulate_second(&mut self) {
+        let route_len = self.route_to_mission.len();
         let squad = &mut self.units.squads[0];
         match squad.state {
             SquadState::IdleAtBase => {
                 if self.world.available_gather_missions > 0 {
                     self.world.available_gather_missions -= 1;
-                    squad.state = SquadState::TravelingToMission { seconds_left: 1 };
+                    squad.state = SquadState::MovingToMission;
+                    squad.path_index = 0;
                 }
             }
-            SquadState::TravelingToMission { seconds_left } => match seconds_left {
-                1 => {
+            SquadState::MovingToMission => {
+                if route_len == 0 {
+                    squad.state = SquadState::Gathering {
+                        seconds_left: GATHER_DURATION_SECS,
+                    };
+                    squad.path_index = 0;
+                    return;
+                }
+                let last = route_len - 1;
+                if squad.path_index < last {
+                    squad.path_index += 1;
+                } else {
                     squad.state = SquadState::Gathering {
                         seconds_left: GATHER_DURATION_SECS,
                     };
                 }
-                n => {
-                    squad.state = SquadState::TravelingToMission {
-                        seconds_left: n - 1,
-                    };
-                }
-            },
+            }
             SquadState::Gathering { seconds_left } => match seconds_left {
                 1 => {
                     self.base.silver = self.base.silver.saturating_add(SILVER_PER_GATHER);
-                    squad.state = SquadState::ReturningToBase { seconds_left: 1 };
+                    squad.state = SquadState::MovingToBase;
+                    if route_len > 0 {
+                        squad.path_index = route_len - 1;
+                    }
                 }
                 n => {
                     squad.state = SquadState::Gathering {
@@ -104,18 +124,25 @@ impl Game {
                     };
                 }
             },
-            SquadState::ReturningToBase { seconds_left } => match seconds_left {
-                1 => {
+            SquadState::MovingToBase => {
+                if route_len == 0 {
                     squad.state = SquadState::IdleAtBase;
+                    squad.path_index = 0;
                     self.world.available_gather_missions = self
                         .world
                         .available_gather_missions
                         .saturating_add(1);
+                    return;
                 }
-                n => {
-                    squad.state = SquadState::ReturningToBase {
-                        seconds_left: n - 1,
-                    };
+                if squad.path_index > 0 {
+                    squad.path_index -= 1;
+                } else {
+                    squad.state = SquadState::IdleAtBase;
+                    squad.path_index = 0;
+                    self.world.available_gather_missions = self
+                        .world
+                        .available_gather_missions
+                        .saturating_add(1);
                 }
             },
         }
@@ -124,7 +151,26 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
+    use ratatui::layout::Rect;
+
     use super::*;
+
+    fn sync_route_like_app(g: &mut Game, term_w: u16, term_h: u16) {
+        use crate::ui::{compute_layout, route_outbound_cells};
+
+        let area = Rect::new(0, 0, term_w, term_h);
+        let inner = compute_layout(area).map_inner;
+        if g.route_map_w == inner.width && g.route_map_h == inner.height {
+            return;
+        }
+        g.route_to_mission = route_outbound_cells(Rect::new(0, 0, inner.width, inner.height));
+        g.route_map_w = inner.width;
+        g.route_map_h = inner.height;
+        if !g.route_to_mission.is_empty() {
+            let max_i = g.route_to_mission.len() - 1;
+            g.units.squads[0].path_index = g.units.squads[0].path_index.min(max_i);
+        }
+    }
 
     #[test]
     fn new_game_base_has_zero_silver() {
@@ -176,88 +222,71 @@ mod tests {
     #[test]
     fn autonomous_gather_loop_adds_silver_every_gather_cycle() {
         let mut g = Game::new();
+        sync_route_like_app(&mut g, 80, 24);
+        assert!(
+            !g.route_to_mission.is_empty(),
+            "route needed for travel simulation"
+        );
+
         assert_eq!(g.world.available_gather_missions, 1);
         assert_eq!(g.base.silver, 0);
 
-        g.tick(1000); // 1: leave base, travel to mission
-        assert_eq!(g.world.available_gather_missions, 0);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::TravelingToMission { seconds_left: 1 }
-        );
-
-        g.tick(1000); // 2: arrive on site, start gathering
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering {
-                seconds_left: GATHER_DURATION_SECS,
+        let wait_silver = |g: &mut Game, target: u64| {
+            for _ in 0..800 {
+                if g.base.silver >= target {
+                    return;
+                }
+                g.tick(1000);
             }
-        );
-
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering {
-                seconds_left: GATHER_DURATION_SECS - 1,
+            panic!("timeout waiting for silver {target}");
+        };
+        let wait_home = |g: &mut Game| {
+            for _ in 0..800 {
+                if g.world.available_gather_missions > 0
+                    && matches!(g.units.squads[0].state, SquadState::IdleAtBase)
+                {
+                    return;
+                }
+                g.tick(1000);
             }
-        );
+            panic!("timeout waiting to return home");
+        };
 
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering { seconds_left: 1 }
-        );
-
-        g.tick(1000); // 5: finish work, silver, return leg
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::ReturningToBase { seconds_left: 1 }
-        );
+        wait_silver(&mut g, SILVER_PER_GATHER);
         assert_eq!(g.base.silver, SILVER_PER_GATHER);
-
-        g.tick(1000); // 6: home, mission slot back
-        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+        wait_home(&mut g);
         assert_eq!(g.world.available_gather_missions, 1);
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
 
-        // Second full gather cycle
-        g.tick(1000);
-        assert_eq!(g.world.available_gather_missions, 0);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::TravelingToMission { seconds_left: 1 }
-        );
-
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering {
-                seconds_left: GATHER_DURATION_SECS,
-            }
-        );
-
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering {
-                seconds_left: GATHER_DURATION_SECS - 1,
-            }
-        );
-
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::Gathering { seconds_left: 1 }
-        );
-
-        g.tick(1000);
-        assert_eq!(
-            g.units.squads[0].state,
-            SquadState::ReturningToBase { seconds_left: 1 }
-        );
+        wait_silver(&mut g, 2 * SILVER_PER_GATHER);
         assert_eq!(g.base.silver, 2 * SILVER_PER_GATHER);
+        wait_home(&mut g);
+        assert_eq!(g.world.available_gather_missions, 1);
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+    }
+
+    #[test]
+    fn moving_to_mission_advances_one_route_index_per_tick() {
+        let mut g = Game::new();
+        sync_route_like_app(&mut g, 80, 24);
+        let last = g.route_to_mission.len().saturating_sub(1);
+        if last == 0 {
+            return;
+        }
 
         g.tick(1000);
-        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
-        assert_eq!(g.world.available_gather_missions, 1);
+        assert_eq!(g.units.squads[0].state, SquadState::MovingToMission);
+        assert_eq!(g.units.squads[0].path_index, 0);
+
+        let mut prev = g.route_to_mission[0];
+        for _ in 0..last {
+            g.tick(1000);
+            assert_eq!(g.units.squads[0].state, SquadState::MovingToMission);
+            let cur = g.route_to_mission[g.units.squads[0].path_index];
+            let dc = prev.0.abs_diff(cur.0);
+            let dr = prev.1.abs_diff(cur.1);
+            assert!(dc <= 1 && dr <= 1 && (dc + dr > 0));
+            prev = cur;
+        }
     }
 }

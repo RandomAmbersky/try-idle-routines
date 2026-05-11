@@ -1,7 +1,5 @@
 use ratatui::layout::Rect;
 
-use crate::core::SquadState;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapTarget {
     Base,
@@ -73,73 +71,72 @@ pub fn cell_step_toward(inner: Rect, from: (u16, u16), to: (u16, u16)) -> (u16, 
     }
 }
 
-/// Integer lerp from `a` to `b` with `num/den` in \[0, den\], clamped to `inner`.
-pub fn cell_lerp(inner: Rect, a: (u16, u16), b: (u16, u16), num: u32, den: u32) -> (u16, u16) {
-    let den = den.max(1);
-    let max_c = inner.width.saturating_sub(1);
-    let max_r = inner.height.saturating_sub(1);
-    let ac = u32::from(a.0.min(max_c));
-    let ar = u32::from(a.1.min(max_r));
-    let bc = u32::from(b.0.min(max_c));
-    let br = u32::from(b.1.min(max_r));
-    let cc = ac + (bc.saturating_sub(ac)).saturating_mul(num) / den;
-    let cr = ar + (br.saturating_sub(ar)).saturating_mul(num) / den;
-    ((cc as u16).min(max_c), (cr as u16).min(max_r))
-}
-
-/// Cell for the squad token `S` so travel home and to the mission are visible on the map.
-pub fn squad_marker_cell(inner: Rect, state: SquadState) -> Option<(u16, u16)> {
+/// Cells from the first step off-base through the mission site (inclusive), in travel order.
+pub fn route_outbound_cells(inner: Rect) -> Vec<(u16, u16)> {
     if inner.width == 0 || inner.height == 0 {
-        return None;
+        return Vec::new();
     }
     let base = cell_for_base(inner);
     let mission = cell_for_mission(inner);
-    let raw = match state {
-        SquadState::IdleAtBase => cell_step_toward(inner, base, mission),
-        SquadState::TravelingToMission { .. } => cell_lerp(inner, base, mission, 1, 2),
-        SquadState::Gathering { .. } => cell_step_toward(inner, mission, base),
-        SquadState::ReturningToBase { .. } => cell_lerp(inner, mission, base, 1, 2),
-    };
-    let (bc, br) = base;
-    let (mc, mr) = mission;
-    let (c, r) = raw;
-    if (c, r) == (bc, br) || (c, r) == (mc, mr) {
-        let toward = if (c, r) == (bc, br) {
-            mission
-        } else {
-            base
-        };
-        Some(cell_step_toward(inner, raw, toward))
-    } else {
-        Some((c, r))
+    let start = cell_step_toward(inner, base, mission);
+    bresenham_inclusive(start, mission, inner.width, inner.height)
+}
+
+fn bresenham_inclusive(
+    start: (u16, u16),
+    end: (u16, u16),
+    max_w: u16,
+    max_h: u16,
+) -> Vec<(u16, u16)> {
+    let max_x = i32::from(max_w.saturating_sub(1));
+    let max_y = i32::from(max_h.saturating_sub(1));
+    let mut x0 = i32::from(start.0).clamp(0, max_x);
+    let mut y0 = i32::from(start.1).clamp(0, max_y);
+    let x1 = i32::from(end.0).clamp(0, max_x);
+    let y1 = i32::from(end.1).clamp(0, max_y);
+    let mut out = Vec::new();
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        out.push((x0 as u16, y0 as u16));
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
     }
+    out
+}
+
+/// Consecutive cells along `route_outbound_cells` are king-adjacent (one map cell per step).
+pub fn route_steps_are_one_cell_apart(inner: Rect) -> bool {
+    let r = route_outbound_cells(inner);
+    r.windows(2).all(|w| {
+        let (a, b) = (w[0], w[1]);
+        let dc = a.0.abs_diff(b.0);
+        let dr = a.1.abs_diff(b.1);
+        dc <= 1 && dr <= 1 && (dc + dr > 0)
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::core::SquadState;
-
     use super::*;
 
     #[test]
-    fn squad_marker_not_on_base_cell_while_traveling() {
-        let inner = Rect::new(0, 0, 50, 12);
-        let (bc, br) = cell_for_base(inner);
-        assert_ne!(
-            squad_marker_cell(inner, SquadState::TravelingToMission { seconds_left: 1 }).unwrap(),
-            (bc, br),
-            "travel marker should leave the base cell"
-        );
-    }
-
-    #[test]
-    fn squad_marker_not_on_mission_cell_while_gathering() {
-        let inner = Rect::new(0, 0, 50, 12);
-        let (mc, mr) = cell_for_mission(inner);
-        assert_ne!(
-            squad_marker_cell(inner, SquadState::Gathering { seconds_left: 1 }).unwrap(),
-            (mc, mr)
-        );
+    fn route_cells_are_one_step_each() {
+        let inner = Rect::new(0, 0, 56, 21);
+        assert!(route_steps_are_one_cell_apart(inner));
     }
 
     #[test]

@@ -85,17 +85,27 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
             lines.push(Line::from(""));
             lines.push(Line::from("Status"));
             push_blank_until(&mut lines, MISSION_ON_SITE_REL_Y);
-            if let Some(state) = game.units.squads.first().map(|squad| squad.state) {
-                let line = match state {
-                    SquadState::TravelingToMission { seconds_left } => format!(
-                        "Squad 0: en route to site ({seconds_left}s)"
-                    ),
+            if let Some(squad) = game.units.squads.first() {
+                let line = match squad.state {
+                    SquadState::MovingToMission => {
+                        let n = game.route_to_mission.len();
+                        format!(
+                            "Squad 0: to site ({}/{})",
+                            squad.path_index.saturating_add(1),
+                            n
+                        )
+                    }
                     SquadState::Gathering { seconds_left } => format!(
                         "Squad on site: 0 ({seconds_left}s left)"
                     ),
-                    SquadState::ReturningToBase { seconds_left } => format!(
-                        "Squad 0: returning to base ({seconds_left}s)"
-                    ),
+                    SquadState::MovingToBase => {
+                        let n = game.route_to_mission.len();
+                        format!(
+                            "Squad 0: to base ({}/{})",
+                            squad.path_index.saturating_add(1),
+                            n
+                        )
+                    }
                     SquadState::IdleAtBase => String::new(),
                 };
                 if !line.is_empty() {
@@ -106,18 +116,25 @@ pub fn format_detail(game: &Game, selection: Selection) -> Text<'static> {
         Selection::Squad(SquadId(squad_index)) => {
             lines.push(Line::from(" [X]"));
             lines.push(Line::from(format!("Squad {squad_index}")));
-            match game.units.squads.get(squad_index).map(|squad| squad.state) {
-                Some(SquadState::IdleAtBase) => lines.push(Line::from("State: idle at base")),
-                Some(SquadState::TravelingToMission { seconds_left }) => lines.push(Line::from(
-                    format!("State: en route to site ({seconds_left}s left)"),
-                )),
-                Some(SquadState::Gathering { seconds_left }) => lines.push(Line::from(format!(
-                    "State: gathering ({seconds_left}s left)"
-                ))),
-                Some(SquadState::ReturningToBase { seconds_left }) => lines.push(Line::from(
-                    format!("State: returning to base ({seconds_left}s left)"),
-                )),
-                None => lines.push(Line::from("State: unknown squad")),
+            if let Some(squad) = game.units.squads.get(squad_index) {
+                match squad.state {
+                    SquadState::IdleAtBase => lines.push(Line::from("State: idle at base")),
+                    SquadState::MovingToMission => lines.push(Line::from(format!(
+                        "State: moving to site (step {} of {})",
+                        squad.path_index.saturating_add(1),
+                        game.route_to_mission.len().max(1)
+                    ))),
+                    SquadState::Gathering { seconds_left } => lines.push(Line::from(format!(
+                        "State: gathering ({seconds_left}s left)"
+                    ))),
+                    SquadState::MovingToBase => lines.push(Line::from(format!(
+                        "State: returning (step {} of {})",
+                        squad.path_index.saturating_add(1),
+                        game.route_to_mission.len().max(1)
+                    ))),
+                }
+            } else {
+                lines.push(Line::from("State: unknown squad"));
             }
         }
     }
@@ -130,8 +147,8 @@ fn mission_squad_row_active(game: &Game) -> bool {
         game.units.squads.first().map(|squad| squad.state),
         Some(
             SquadState::Gathering { .. }
-                | SquadState::TravelingToMission { .. }
-                | SquadState::ReturningToBase { .. }
+                | SquadState::MovingToMission
+                | SquadState::MovingToBase
         )
     )
 }

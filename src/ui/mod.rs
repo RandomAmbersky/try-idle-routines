@@ -6,7 +6,7 @@ mod selection;
 pub use detail::{detail_mouse_target, format_detail, DetailMouseTarget};
 pub use layout::{compute_layout, MainLayout};
 pub use map_layout::{
-    cell_for_base, cell_for_mission, map_target_at_cell, squad_marker_cell, terminal_xy_to_cell,
+    cell_for_base, cell_for_mission, map_target_at_cell, route_outbound_cells, terminal_xy_to_cell,
     MapTarget,
 };
 pub use selection::{Selection, SquadId};
@@ -18,7 +18,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::core::{Game, SquadState};
+use crate::core::{Game, Squad, SquadState};
 
 pub fn render(
     frame: &mut Frame,
@@ -66,7 +66,7 @@ fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
         grid[usize::from(mission_row)][usize::from(mission_col)] = mission_glyph;
 
         for squad in &game.units.squads {
-            if let Some((sc, sr)) = squad_marker_cell(inner, squad.state) {
+            if let Some((sc, sr)) = squad_cell_on_map(inner, game, squad) {
                 let uc = usize::from(sc);
                 let ur = usize::from(sr);
                 if uc < width && ur < height {
@@ -81,6 +81,24 @@ fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
             .map(|row| Line::from(row.into_iter().collect::<String>()))
             .collect::<Vec<_>>(),
     )
+}
+
+fn squad_cell_on_map(inner: ratatui::layout::Rect, game: &Game, squad: &Squad) -> Option<(u16, u16)> {
+    let mission = cell_for_mission(inner);
+    match squad.state {
+        SquadState::IdleAtBase => Some(map_layout::cell_step_toward(
+            inner,
+            cell_for_base(inner),
+            mission,
+        )),
+        SquadState::MovingToMission => game.route_to_mission.get(squad.path_index).copied(),
+        SquadState::Gathering { .. } => Some(map_layout::cell_step_toward(
+            inner,
+            mission,
+            cell_for_base(inner),
+        )),
+        SquadState::MovingToBase => game.route_to_mission.get(squad.path_index).copied(),
+    }
 }
 
 #[cfg(test)]
