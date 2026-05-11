@@ -1,7 +1,9 @@
 mod layout;
 mod map_layout;
+mod detail;
 mod selection;
 
+pub use detail::{DetailMouseTarget, detail_mouse_target, format_detail};
 pub use layout::{compute_layout, MainLayout};
 pub use map_layout::{MapTarget, cell_for_base, cell_for_mission, map_target_at_cell, terminal_xy_to_cell};
 pub use selection::{Selection, SquadId};
