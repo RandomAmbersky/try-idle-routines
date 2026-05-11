@@ -14,7 +14,11 @@ pub struct Base {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SquadState {
     IdleAtBase,
+    /// Moving from base toward the mission site (UI shows on map).
+    TravelingToMission { seconds_left: u32 },
     Gathering { seconds_left: u32 },
+    /// Heading home after completing work on site.
+    ReturningToBase { seconds_left: u32 },
 }
 
 #[derive(Debug)]
@@ -74,14 +78,34 @@ impl Game {
             SquadState::IdleAtBase => {
                 if self.world.available_gather_missions > 0 {
                     self.world.available_gather_missions -= 1;
+                    squad.state = SquadState::TravelingToMission { seconds_left: 1 };
+                }
+            }
+            SquadState::TravelingToMission { seconds_left } => match seconds_left {
+                1 => {
                     squad.state = SquadState::Gathering {
                         seconds_left: GATHER_DURATION_SECS,
                     };
                 }
-            }
+                n => {
+                    squad.state = SquadState::TravelingToMission {
+                        seconds_left: n - 1,
+                    };
+                }
+            },
             SquadState::Gathering { seconds_left } => match seconds_left {
                 1 => {
                     self.base.silver = self.base.silver.saturating_add(SILVER_PER_GATHER);
+                    squad.state = SquadState::ReturningToBase { seconds_left: 1 };
+                }
+                n => {
+                    squad.state = SquadState::Gathering {
+                        seconds_left: n - 1,
+                    };
+                }
+            },
+            SquadState::ReturningToBase { seconds_left } => match seconds_left {
+                1 => {
                     squad.state = SquadState::IdleAtBase;
                     self.world.available_gather_missions = self
                         .world
@@ -89,7 +113,7 @@ impl Game {
                         .saturating_add(1);
                 }
                 n => {
-                    squad.state = SquadState::Gathering {
+                    squad.state = SquadState::ReturningToBase {
                         seconds_left: n - 1,
                     };
                 }
@@ -155,8 +179,14 @@ mod tests {
         assert_eq!(g.world.available_gather_missions, 1);
         assert_eq!(g.base.silver, 0);
 
-        g.tick(1000); // simulated second 1: depart
+        g.tick(1000); // 1: leave base, travel to mission
         assert_eq!(g.world.available_gather_missions, 0);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::TravelingToMission { seconds_left: 1 }
+        );
+
+        g.tick(1000); // 2: arrive on site, start gathering
         assert_eq!(
             g.units.squads[0].state,
             SquadState::Gathering {
@@ -164,7 +194,7 @@ mod tests {
             }
         );
 
-        g.tick(1000); // 2 → 3 → 2
+        g.tick(1000);
         assert_eq!(
             g.units.squads[0].state,
             SquadState::Gathering {
@@ -172,15 +202,21 @@ mod tests {
             }
         );
 
-        g.tick(1000); // 3 → 2 → 1
+        g.tick(1000);
         assert_eq!(
             g.units.squads[0].state,
             SquadState::Gathering { seconds_left: 1 }
         );
 
-        g.tick(1000); // 4: resolve
-        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+        g.tick(1000); // 5: finish work, silver, return leg
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::ReturningToBase { seconds_left: 1 }
+        );
         assert_eq!(g.base.silver, SILVER_PER_GATHER);
+
+        g.tick(1000); // 6: home, mission slot back
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
         assert_eq!(g.world.available_gather_missions, 1);
 
         // Second full gather cycle
@@ -188,6 +224,12 @@ mod tests {
         assert_eq!(g.world.available_gather_missions, 0);
         assert_eq!(
             g.units.squads[0].state,
+            SquadState::TravelingToMission { seconds_left: 1 }
+        );
+
+        g.tick(1000);
+        assert_eq!(
+            g.units.squads[0].state,
             SquadState::Gathering {
                 seconds_left: GATHER_DURATION_SECS,
             }
@@ -208,8 +250,14 @@ mod tests {
         );
 
         g.tick(1000);
-        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
+        assert_eq!(
+            g.units.squads[0].state,
+            SquadState::ReturningToBase { seconds_left: 1 }
+        );
         assert_eq!(g.base.silver, 2 * SILVER_PER_GATHER);
+
+        g.tick(1000);
+        assert_eq!(g.units.squads[0].state, SquadState::IdleAtBase);
         assert_eq!(g.world.available_gather_missions, 1);
     }
 }

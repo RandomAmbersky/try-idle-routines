@@ -6,7 +6,8 @@ mod selection;
 pub use detail::{detail_mouse_target, format_detail, DetailMouseTarget};
 pub use layout::{compute_layout, MainLayout};
 pub use map_layout::{
-    cell_for_base, cell_for_mission, map_target_at_cell, terminal_xy_to_cell, MapTarget,
+    cell_for_base, cell_for_mission, map_target_at_cell, squad_marker_cell, terminal_xy_to_cell,
+    MapTarget,
 };
 pub use selection::{Selection, SquadId};
 
@@ -56,13 +57,23 @@ fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
             .units
             .squads
             .iter()
-            .any(|squad| matches!(squad.state, SquadState::Gathering { .. }))
+            .any(|squad| !matches!(squad.state, SquadState::IdleAtBase))
         {
             '!'
         } else {
             'M'
         };
         grid[usize::from(mission_row)][usize::from(mission_col)] = mission_glyph;
+
+        for squad in &game.units.squads {
+            if let Some((sc, sr)) = squad_marker_cell(inner, squad.state) {
+                let uc = usize::from(sc);
+                let ur = usize::from(sr);
+                if uc < width && ur < height {
+                    grid[ur][uc] = 'S';
+                }
+            }
+        }
     }
 
     Text::from(
