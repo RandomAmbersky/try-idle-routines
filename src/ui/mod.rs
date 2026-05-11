@@ -1,4 +1,7 @@
+mod layout;
 mod selection;
+
+pub use layout::{compute_layout, MainLayout};
 pub use selection::{Selection, SquadId};
 
 use ratatui::{
