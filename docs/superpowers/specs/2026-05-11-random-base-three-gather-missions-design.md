@@ -17,7 +17,7 @@ This spec is **gameplay + map truth**. It **updates** map/mission assumptions do
 
 - **MVP-0 / MVP-1:** time model (`tick`, pause, step) unchanged.
 - **Vision / gather MVP** (`2026-05-09-idle-ufo-inspired-vision-design.md`, gather plan): still **one squad**, **one resource (Silver)** on the base, **gather** mission type only.
-- **Map + mouse selection** (`2026-05-11-tui-map-mouse-selection-design.md`): layout and selection patterns stay; **mission sites** become **up to three** cells drawn from domain state, not a single hard-coded coordinate. Where the older spec says idle squads are **not** on the map, **this document wins:** idle squads are shown **on the base cell** (`S` over `B`) so placement stays correct with a random base and no fixed “staging” cell off-base.
+- **Map + mouse selection** (`2026-05-11-tui-map-mouse-selection-design.md`): layout and selection patterns stay; **mission sites** become **up to three** cells drawn from domain state, not a single hard-coded coordinate. **Idle squads (garrison at base)** are **not** drawn on the map; the roster remains in the detail column when **Base** is selected, consistent with treating the base as an interior rather than a map token for units.
 
 ## Out of scope (explicit)
 
@@ -67,7 +67,7 @@ This spec is **gameplay + map truth**. It **updates** map/mission assumptions do
 
 - **Base:** one glyph (e.g. `B`) at the generated base cell.
 - **Missions:** one glyph per **active** mission (e.g. `M`, or `!` when any squad is actively engaged with **that** cell if the product wants per-site urgency—**default:** reuse a single mission glyph set: `M` when no squad on route to this cell, `!` when this cell is the **current** outbound/gather target; exact styling is implementation detail).
-- **Squads:** position from state + current route while **MovingToMission**, **Gathering**, or **MovingToBase**. While **IdleAtBase**, the squad occupies the **base cell** for map purposes (replacing the fixed “one step toward mission” rule, which does not apply when missions are dynamic or absent). **Glyph overlap at base:** draw **base** then **squad** so **`S` wins** over `B` when both share the cell (player always sees the unit at home).
+- **Squads:** draw on the map only while **MovingToMission**, **Gathering**, or **MovingToBase** (position from `route_to_mission`). While **IdleAtBase**, squads are **inside** the base and **must not** appear on the map (`S` is not drawn on the base cell); use the **Base** detail panel for the roster.
 
 ## Viewport (`map_view_origin`)
 

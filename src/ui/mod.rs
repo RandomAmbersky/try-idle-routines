@@ -154,7 +154,8 @@ fn map_text(inner: ratatui::layout::Rect, game: &Game) -> Text<'static> {
 
 fn squad_cell_on_map(game: &Game, squad: &Squad) -> Option<(u16, u16)> {
     match squad.state {
-        SquadState::IdleAtBase => Some(game.world.base_cell),
+        // Garrison: squads at base are not drawn on the map (roster in detail only).
+        SquadState::IdleAtBase => None,
         SquadState::MovingToMission => game.route_to_mission.get(squad.path_index).copied(),
         SquadState::Gathering { .. } => game.route_to_mission.last().copied(),
         SquadState::MovingToBase => game.route_to_mission.get(squad.path_index).copied(),
@@ -185,7 +186,7 @@ mod render_tests {
         let (mission_col, mission_row) = game.world.active_missions[0];
         assert_eq!(
             frame.buffer[(layout.map_inner.x + base_col, layout.map_inner.y + base_row)].symbol(),
-            "S"
+            "B"
         );
         assert_eq!(
             frame.buffer[(
@@ -203,10 +204,14 @@ mod render_tests {
     }
 
     #[test]
-    fn squad_index_at_map_cell_finds_idle_squad() {
-        let game = Game::new_from_layout_for_test((10, 10), vec![(30, 10)]);
-        let (c, r) = game.world.base_cell;
-        assert_eq!(squad_index_at_map_cell(&game, c, r), Some(0));
+    fn squad_not_on_map_when_idle_at_base_shows_when_deployed() {
+        let mut game = Game::new_from_layout_for_test((10, 10), vec![(20, 10)]);
+        let (bc, br) = game.world.base_cell;
+        assert_eq!(squad_index_at_map_cell(&game, bc, br), None);
+
+        game.tick(crate::core::SIMULATED_SECOND_MS);
+        let pos = game.route_to_mission[game.units.squads[0].path_index];
+        assert_eq!(squad_index_at_map_cell(&game, pos.0, pos.1), Some(0));
         assert_eq!(squad_index_at_map_cell(&game, 0, 0), None);
     }
 
